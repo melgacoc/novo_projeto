@@ -1,0 +1,92 @@
+# Infraestrutura local. Portas diferentes das do Rio Manager para rodar os dois juntos.
+# `docker compose up -d` sobe só a infra; `docker compose --profile app up -d --build` sobe também API, worker e web.
+name: tur
+
+services:
+  db:
+    image: postgis/postgis:16-3.4-alpine
+    environment:
+      POSTGRES_USER: tur
+      POSTGRES_PASSWORD: tur
+      POSTGRES_DB: tur
+    ports:
+      - "5433:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U tur -d tur"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  redis:
+    image: redis:7-alpine
+    command: ["redis-server", "--appendonly", "yes"]
+    ports:
+      - "6380:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 20
+
+  mailpit:
+    # SMTP de teste: todo e-mail enviado em desenvolvimento aparece em http://localhost:8026
+    image: axllent/mailpit:latest
+    ports:
+      - "1026:1025"
+      - "8026:8025"
+
+  api:
+    profiles: ["app"]
+    build: ./api
+    env_file: ./api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://tur:tur@db:5432/tur
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    command: ["sh", "-c", "alembic upgrade head && python -m app.seed && uvicorn app.main:app --host 0.0.0.0 --port 8000"]
+    ports:
+      - "8000:8000"
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  worker:
+    profiles: ["app"]
+    build: ./api
+    env_file: ./api/.env
+    environment:
+      DATABASE_URL: postgresql+psycopg://tur:tur@db:5432/tur
+      REDIS_URL: redis://redis:6379/0
+      SMTP_HOST: mailpit
+      SMTP_PORT: "1025"
+    command: ["celery", "-A", "app.worker.celery_app", "worker", "--beat", "--loglevel=INFO"]
+    volumes:
+      - media_data:/app/media
+    depends_on:
+      db: { condition: service_healthy }
+      redis: { condition: service_healthy }
+
+  web:
+    profiles: ["app"]
+    build:
+      context: ./web
+      args:
+        VITE_API_URL: http://localhost:8000/api/v1
+    environment:
+      API_URL_INTERNAL: http://api:8000/api/v1
+    ports:
+      - "3000:3000"
+    depends_on:
+      - api
+
+volumes:
+  postgres_data:
+  redis_data:
+  media_data:

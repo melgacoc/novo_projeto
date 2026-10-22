@@ -1,0 +1,27 @@
+# base herdada do Rio Manager
+fastapi==0.143.0
+uvicorn[standard]==0.54.0
+SQLAlchemy==2.1.4
+alembic==1.20.0
+psycopg[binary]==3.3.6
+pydantic==2.14.0
+email-validator==2.3.0
+PyJWT==2.15.1
+python-dotenv==1.2.4
+python-multipart==0.0.32
+phonenumbers==9.0.41
+reportlab==5.0.1
+httpx==0.28.1
+
+# novas
+pydantic-settings==2.16.0
+GeoAlchemy2==0.20.0
+redis==8.1.0
+celery==5.6.3
+sentry-sdk==2.72.0
+boto3==1.43.114
+pillow==13.0.0
+tzdata==2026.5
+
+# testes
+pytest==9.1.1
